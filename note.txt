@@ -1,0 +1,18 @@
+The maximum reward for CartPole is 500, since there are 500 episodes, and in every step, it get +1. 
+
+ac_alpha_theta = 0.001
+ac_alpha_w = 0.01
+=> Super bad result, the reward stay flat near 0, while baseline performs well with this param. 
+
+ac_alpha_theta = 0.05
+ac_alpha_w = 0.1
+=> Better result, the reward converge to around 20.
+
+ac_alpha_theta = 0.05
+ac_alpha_w = 0.2
+=> Better result with large alpha_w, converge at around 100+. However, we often have the bug probabilities contain NaN with large alpha_w. 
+Another problem is that it is fluctuating a lot. 
+
+ac_alpha_theta = 0.1
+ac_alpha_w = 0.2
+=> Reward = 75 ??
