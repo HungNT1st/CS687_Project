@@ -2,6 +2,7 @@ import gymnasium as gym
 import numpy as np
 from tqdm import tqdm
 import matplotlib.pyplot as plt
+import itertools
 
 def demo_random_actions():
     env = gym.make('CartPole-v1', render_mode='human')
@@ -94,8 +95,67 @@ def run_episode_actor_critic(env, gamma, theta, w, alpha_theta, alpha_w):
 
     return total_reward
 
+def run_episode_n_step_sarsa(env, gamma, theta, w, alpha_theta, alpha_w, n_steps):
+    s, info = env.reset()
+    s = s.astype(np.float32)
+    done = False
+    total_reward = 0
+    
+    #pick first action
+    pi_s = policy_probs(theta, s)
+    a = np.random.choice(len(pi_s), p=pi_s)
+    
+    # Init n-step buffers
+    states, actions, rewards = [s], [a], []
+    
+    T = float('inf')
+    
+    for t in itertools.count():
+        if t < T:
+            s_next, r, terminated, truncated, info = env.step(a)
+            s_next = s_next.astype(np.float32)
+            done = terminated or truncated
+            total_reward += r
+
+            states.append(s_next)
+            rewards.append(r)
+            
+            # Choose next action
+            if not done:
+                pi_s_next = policy_probs(theta, s_next)
+                a_next = np.random.choice(len(pi_s_next), p=pi_s_next)
+                actions.append(a_next)
+            else:
+                T = t + 1
+        
+        tau = t + 1 - n_steps
+        
+        
+        # Update after n steps or at the end of the episode
+        if tau >= 0:
+            # compute n-step returns
+            G = sum(np.power(gamma, i) * rewards[tau + i] for i in range(min(n_steps, T - tau)))
+            if tau + n_steps < T:
+                G += np.power(gamma, n_steps) * value(w, states[tau + n_steps])
+        
+            #update weights
+            s_tau = states[tau]
+            a_tau = actions[tau]
+            v_s_tau = value(w, s_tau)
+            delta = G - v_s_tau
+            
+            w += alpha_w * delta * grad_value_func(s_tau)
+            theta += alpha_theta * delta * grad_log_policy(theta, s_tau, a_tau)
+        
+        if tau == T - 1:
+            break
+        
+        s, a = s_next, a_next
+        
+    return total_reward
+            
 def run_experiments(env_name, algorithm='reinforce_baseline', gamma=0.99,
-                    alpha_theta=0.001, alpha_w=0.01, n_episodes=2000, n_runs=5, seed=0):
+                    alpha_theta=0.001, alpha_w=0.01, n_episodes=2000, n_runs=5, n_steps=4, seed=0):
     np.random.seed(seed)
 
     env = gym.make(env_name)
@@ -113,6 +173,8 @@ def run_experiments(env_name, algorithm='reinforce_baseline', gamma=0.99,
                 G = run_episode_reinforce_with_baseline(env, gamma, theta, w, alpha_theta, alpha_w)
             elif algorithm == 'actor_critic':
                 G = run_episode_actor_critic(env, gamma, theta, w, alpha_theta, alpha_w)
+            elif algorithm == 'n_step_sarsa':
+                G = run_episode_n_step_sarsa(env, gamma, theta, w, alpha_theta, alpha_w, n_steps)
             else:
                 raise ValueError("Unknown algorithm!")
 
@@ -131,13 +193,17 @@ if __name__ == "__main__":
     baseline_alpha_w = 0.01
     ac_alpha_theta = 0.02
     ac_alpha_w = 0.15
+    nss_alpha_theta = 0.001
+    nss_alpha_w = 0.01
+    n_steps = 5
     n_episodes = 3000
     n_runs = 5
 
     # envs = ['CartPole-v1', 'MountainCar-v0']
     envs = ['CartPole-v1']
-    algorithms = ['reinforce_baseline', 'actor_critic']
+    # algorithms = ['reinforce_baseline', 'actor_critic']
     # algorithms = ['actor_critic']
+    algorithms = ['n_step_sarsa']
 
     seed = np.random.randint(0, 2**32 - 1)
     results = {}
@@ -150,9 +216,12 @@ if __name__ == "__main__":
             elif algo == 'actor_critic':
                 alpha_theta = ac_alpha_theta
                 alpha_w = ac_alpha_w
+            elif algo == 'n_step_sarsa':
+                alpha_theta = nss_alpha_theta
+                alpha_w = nss_alpha_w
             mean_ret, std_ret = run_experiments(env_name, algorithm=algo, gamma=gamma,
                                                 alpha_theta=alpha_theta, alpha_w=alpha_w,
-                                                n_episodes=n_episodes, n_runs=n_runs, seed=seed)
+                                                n_episodes=n_episodes, n_runs=n_runs, n_steps=n_steps, seed=seed)
             results[env_name][algo] = (mean_ret, std_ret)
 
     for env_name in envs:
