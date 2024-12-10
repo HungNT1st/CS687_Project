@@ -3,6 +3,7 @@ import numpy as np
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 import itertools
+from multiprocessing import Pool
 
 def demo_random_actions():
     env = gym.make('CartPole-v1', render_mode='human')
@@ -162,35 +163,78 @@ def run_episode_n_step_sarsa(env, gamma, theta, w, alpha_theta, alpha_w, n_steps
         
     return total_reward
             
-def run_experiments(env_name, algorithm='reinforce_baseline', gamma=0.99,
-                    alpha_theta=0.001, alpha_w=0.01, n_episodes=2000, n_runs=5, n_steps=4, seed=0):
-    np.random.seed(seed)
+# This function will run the experiment one by one. It is slower.
+# def run_experiments(env_name, algorithm='reinforce_baseline', gamma=0.99,
+#                     alpha_theta=0.001, alpha_w=0.01, n_episodes=2000, n_runs=5, n_steps=4, seed=0):
+#     np.random.seed(seed)
 
+#     env = gym.make(env_name)
+#     obs_dim = env.observation_space.shape[0]
+#     n_actions = env.action_space.n
+
+#     returns_all_runs = []
+#     for run in range(n_runs):
+#         theta = np.zeros((n_actions, obs_dim))
+#         w = np.zeros(obs_dim)
+
+#         run_returns = []
+#         for ep in tqdm(range(n_episodes), desc=f'Run {run+1}/{n_runs}'):
+#             if algorithm == 'reinforce_baseline':
+#                 G = run_episode_reinforce_with_baseline(env, gamma, theta, w, alpha_theta, alpha_w)
+#             elif algorithm == 'actor_critic':
+#                 G = run_episode_actor_critic(env, gamma, theta, w, alpha_theta, alpha_w)
+#             elif algorithm == 'n_step_sarsa':
+#                 G = run_episode_n_step_sarsa(env, gamma, theta, w, alpha_theta, alpha_w, n_steps)
+#             else:
+#                 raise ValueError("Unknown algorithm!")
+
+#             run_returns.append(G)
+#         returns_all_runs.append(run_returns)
+
+#     env.close()
+#     returns_all_runs = np.array(returns_all_runs)
+#     mean_returns = np.mean(returns_all_runs, axis=0)
+#     std_returns = np.std(returns_all_runs, axis=0)
+#     return mean_returns, std_returns
+
+# This function will be used to run multiple experiments in parallel
+def run_single_experiment(env_name, algorithm, gamma, alpha_theta, alpha_w, n_episodes, n_steps, seed, run_id):
+    seed += run_id
+    print(f'Running {algorithm} on {env_name} with seed {seed}')
+    np.random.seed(seed)
     env = gym.make(env_name)
     obs_dim = env.observation_space.shape[0]
     n_actions = env.action_space.n
 
-    returns_all_runs = []
-    for run in range(n_runs):
-        theta = np.zeros((n_actions, obs_dim))
-        w = np.zeros(obs_dim)
+    theta = np.zeros((n_actions, obs_dim))
+    w = np.zeros(obs_dim)
 
-        run_returns = []
-        for ep in tqdm(range(n_episodes), desc=f'Run {run+1}/{n_runs}'):
-            if algorithm == 'reinforce_baseline':
-                G = run_episode_reinforce_with_baseline(env, gamma, theta, w, alpha_theta, alpha_w)
-            elif algorithm == 'actor_critic':
-                G = run_episode_actor_critic(env, gamma, theta, w, alpha_theta, alpha_w)
-            elif algorithm == 'n_step_sarsa':
-                G = run_episode_n_step_sarsa(env, gamma, theta, w, alpha_theta, alpha_w, n_steps)
-            else:
-                raise ValueError("Unknown algorithm!")
-
-            run_returns.append(G)
-        returns_all_runs.append(run_returns)
+    run_returns = []
+    for ep in range(n_episodes):
+        if algorithm == 'reinforce_baseline':
+            G = run_episode_reinforce_with_baseline(env, gamma, theta, w, alpha_theta, alpha_w)
+        elif algorithm == 'actor_critic':
+            G = run_episode_actor_critic(env, gamma, theta, w, alpha_theta, alpha_w)
+        elif algorithm == 'n_step_sarsa':
+            G = run_episode_n_step_sarsa(env, gamma, theta, w, alpha_theta, alpha_w, n_steps)
+        else:
+            raise ValueError("Unknown algorithm!")
+        if ep % 500 == 0:
+            print(f'Run {run_id+1} - Episode {ep}/{n_episodes} - Return: {G}')
+        run_returns.append(G)
 
     env.close()
-    returns_all_runs = np.array(returns_all_runs)
+    return run_returns
+
+def run_experiments(env_name, algorithm='reinforce_baseline', gamma=0.99,
+                    alpha_theta=0.001, alpha_w=0.01, n_episodes=2000, n_runs=5, n_steps=4, seed=0):
+    args = [(env_name, algorithm, gamma, alpha_theta, alpha_w, n_episodes, n_steps, seed + run, run) 
+            for run in range(n_runs)]
+
+    with Pool() as pool:
+        results_all_runs = pool.starmap(run_single_experiment, args)
+
+    returns_all_runs = np.array(results_all_runs)
     mean_returns = np.mean(returns_all_runs, axis=0)
     std_returns = np.std(returns_all_runs, axis=0)
     return mean_returns, std_returns
@@ -198,22 +242,27 @@ def run_experiments(env_name, algorithm='reinforce_baseline', gamma=0.99,
 if __name__ == "__main__":
     # Parameters
     gamma = 0.99
-    baseline_alpha_theta = 0.00006
-    baseline_alpha_w = 0.006
+    # CartPole-v1
+    # baseline_alpha_theta = 0.00006
+    # baseline_alpha_w = 0.006
+    
+    # Acrobot-v1
+    baseline_alpha_theta = 0.00005
+    baseline_alpha_w = 0.0005
+    
+    
     ac_alpha_theta = 0.02
     ac_alpha_w = 0.1
     nss_alpha_theta = 0.001
     nss_alpha_w = 0.01
     n_steps = 5
-    n_episodes = 5000
+    n_episodes = 2000
     n_runs = 5
 
     # Run experiments
-    # envs = ['CartPole-v1', 'MountainCar-v0']
     # envs = ['CartPole-v1']
-    envs = ['MountainCar-v0']
-    # algorithms = ['reinforce_baseline', 'actor_critic']
-    # algorithms = ['actor_critic']
+    # envs = ['Acrobot-v1']
+    
     # algorithms = ['n_step_sarsa']
     algorithms = ['reinforce_baseline']
 
