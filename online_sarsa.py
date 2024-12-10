@@ -124,7 +124,7 @@ def run_experiments(env_name, algorithm='reinforce_baseline', gamma=0.99,
 if __name__ == "__main__":
     gamma = 0.99
     n_steps = 5
-    n_episodes = 5000
+    n_episodes = 2000
     n_runs = 5
 
     # envs = ['CartPole-v1']
@@ -135,6 +135,7 @@ if __name__ == "__main__":
     epsilon = 0.1
     alpha = 0.0003
     
+    # Grid search for best parameters
     # lam_values = np.linspace(0.1, 0.95, 9)
     # alpha_values = np.linspace(0.0001, 0.001, 10)
 
