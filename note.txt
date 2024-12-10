@@ -16,3 +16,16 @@ Another problem is that it is fluctuating a lot.
 ac_alpha_theta = 0.1
 ac_alpha_w = 0.2
 => Reward = 75 ??
+
+
+
+baseline_alpha_theta = 0.00005
+baseline_alpha_w = 0.005
+n_episodes = 5000
+=> OK
+
+
+baseline_alpha_theta = 0.0001
+baseline_alpha_w = 0.01
+n_episodes = 2000 
+=> converge, but not to the best reward. 

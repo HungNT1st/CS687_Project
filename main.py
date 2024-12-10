@@ -35,6 +35,7 @@ def grad_value_func(s):
     return s
 
 def run_episode_reinforce_with_baseline(env, gamma, theta, w, alpha_theta, alpha_w):
+    # Generate an episode
     states, actions, rewards = [], [], []
     s, info = env.reset()
     s = s.astype(np.float32)
@@ -49,16 +50,21 @@ def run_episode_reinforce_with_baseline(env, gamma, theta, w, alpha_theta, alpha
         rewards.append(r)
         s = s_next.astype(np.float32)
 
+    # Compute returns and update weights
     G = 0
     for t in reversed(range(len(states))):
         G = rewards[t] + gamma * G
         s_t = states[t]
         a_t = actions[t]
         
+        # The baseline
         v_s_t = value(w, s_t)
         delta = G - v_s_t
         
+        # Update weights
         w += alpha_w * delta * grad_value_func(s_t)
+        
+        # Update theta
         theta += alpha_theta * delta * grad_log_policy(theta, s_t, a_t)
 
     return sum(rewards)
@@ -68,6 +74,7 @@ def run_episode_actor_critic(env, gamma, theta, w, alpha_theta, alpha_w):
     s = s.astype(np.float32)
     done = False
     total_reward = 0
+    I = 1
     while not done:
         pi_s = policy_probs(theta, s)
         # This sometimes cause ValueError: probabilities contain NaN
@@ -89,7 +96,8 @@ def run_episode_actor_critic(env, gamma, theta, w, alpha_theta, alpha_w):
         delta = r + gamma * v_s_next - v_s
 
         w += alpha_w * delta * grad_value_func(s)
-        theta += alpha_theta * delta * grad_log_policy(theta, s, a)
+        theta += alpha_theta * I * delta * grad_log_policy(theta, s, a)
+        I *= gamma
 
         s = s_next
 
@@ -188,22 +196,26 @@ def run_experiments(env_name, algorithm='reinforce_baseline', gamma=0.99,
     return mean_returns, std_returns
 
 if __name__ == "__main__":
+    # Parameters
     gamma = 0.99
-    baseline_alpha_theta = 0.0001
-    baseline_alpha_w = 0.01
+    baseline_alpha_theta = 0.00006
+    baseline_alpha_w = 0.006
     ac_alpha_theta = 0.02
-    ac_alpha_w = 0.15
+    ac_alpha_w = 0.1
     nss_alpha_theta = 0.001
     nss_alpha_w = 0.01
     n_steps = 5
-    n_episodes = 3000
+    n_episodes = 5000
     n_runs = 5
 
+    # Run experiments
     # envs = ['CartPole-v1', 'MountainCar-v0']
-    envs = ['CartPole-v1']
+    # envs = ['CartPole-v1']
+    envs = ['MountainCar-v0']
     # algorithms = ['reinforce_baseline', 'actor_critic']
     # algorithms = ['actor_critic']
-    algorithms = ['n_step_sarsa']
+    # algorithms = ['n_step_sarsa']
+    algorithms = ['reinforce_baseline']
 
     seed = np.random.randint(0, 2**32 - 1)
     results = {}
@@ -237,5 +249,5 @@ if __name__ == "__main__":
         plt.legend()
         plt.grid(True)
         # plt.show()
-        plt.savefig(f'{env_name}_learning_curves.png')
+        plt.savefig(f'figure/{env_name}_{algorithms}_learning_curves.png')
         plt.close()
